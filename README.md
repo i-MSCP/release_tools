@@ -1,4 +1,4 @@
-release_tools
+Release Tools
 =============
 
-Release tools
+Repository containing release tools.

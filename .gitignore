@@ -1,0 +1,8 @@
+*.PHPEditProject
+.idea
+nbproject
+.pc
+.buildpath
+.project
+.vagrant
+.settings
