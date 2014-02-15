@@ -23,10 +23,11 @@
 # IMPORTANT
 #
 # You must have write access to the i-MSCP git repository (just import your ssh key if needed)
-# Usage example: ./release.sh -r 1.1.0-rc1 -t 'nuxwin:23051998' -m 'Laurent Declercq' -f nuxwin -s
+# Usage example: ./release.sh -b stable -r 1.1.1 -t 'username:password' -m 'Laurent Declercq' -f nuxwin -s -d
 #
 # Will in order:
 #  - Clone the i-MSCP git repository or pull changes from it if already there
+#  - Switch to the specified branch if needed
 #  - Prepare the release by updating version and builddate in all files
 #  - Push the iMSCP.pot file on Transifex
 #  - Pull all *.po files from Transifex
@@ -51,13 +52,14 @@ usage() {
 	echo "Release new i-MSCP version on github and sourceforge"
 	echo ""
 	echo "Options:"
-	echo "  -r	i-MSCP release (such as 1.1.0-rc1)."
-	echo "  -t	Transifex credentials provided as 'username:password'."
-	echo "  -m	Release manager name (default to Torsten Widmann)."
-	echo "  -f	Sourceforge username (default to goover)."
-	echo "  -s	Whether or not use sudo for the restricted commands."
-	echo "  -d	Do everything except actually send the updates on both Github and Sourceforge."
-	echo "  -h	Show this help."
+	echo "  -b  Git branch onto operate (default to stable)."
+	echo "  -r  i-MSCP release (such as 1.1.0-rc1)."
+	echo "  -t  Transifex credentials provided as 'username:password'."
+	echo "  -m  Release manager name (default to Torsten Widmann)."
+	echo "  -f  Sourceforge username (default to goover)."
+	echo "  -s  Whether or not use sudo for the restricted commands."
+	echo "  -d  Do everything except actually send the updates on both Github and Sourceforge."
+	echo "  -h  Show this help."
 
 	exit 1
 }
@@ -69,40 +71,44 @@ TRANSIFEX=""
 TARGETVERSION=""
 SUDO=""
 DRYRUN=""
+BRANCH="stable"
 
 # Parse options
 if [ "$#" -eq "1" -a "$1" = "-h" ]; then usage; fi
 
-while getopts ":f:m:r:t:sd" option;
+while getopts "b:f:m:r:t:sd" option;
 do
-  case $option in
-    f)
-		FTPUSER=$OPTARG
+	case $option in
+		b)
+			BRANCH=$OPTARG
 		;;
-	m)
-		RELEASEMANAGER=$OPTARG
+		f)
+			FTPUSER=$OPTARG
 		;;
-	r)
-		TARGETVERSION=$OPTARG
+		m)
+			RELEASEMANAGER=$OPTARG
 		;;
-	t)
-		TRANSIFEX=$OPTARG
-		TRANSIFEXUSER=$(echo "${TRANSIFEX}" | cut -s -d ":" -f 1 | sed 's/ //g')
-		TRANSIFEXPWD=$(echo "${TRANSIFEX}" | cut -s -d ":" -f 2 | sed 's/ //g')
+		r)
+			TARGETVERSION=$OPTARG
 		;;
-	s)
-		SUDO="sudo"
+		t)
+			TRANSIFEX=$OPTARG
+			TRANSIFEXUSER=$(echo "${TRANSIFEX}" | cut -s -d ":" -f 1 | sed 's/ //g')
+			TRANSIFEXPWD=$(echo "${TRANSIFEX}" | cut -s -d ":" -f 2 | sed 's/ //g')
 		;;
-	d)
-		DRYRUN="--dry-run"
+		s)
+			SUDO="sudo"
 		;;
-	\?)
-		echo "Invalid option: -$OPTARG" >&2
-		usage
+		d)
+			DRYRUN="--dry-run"
 		;;
-	:)
-		echo "Option -$OPTARG requires an argument." >&2
-		usage
+		\?)
+			echo "Invalid option: -$OPTARG" >&2
+			usage
+			;;
+		:)
+			echo "Option -$OPTARG requires an argument." >&2
+			usage
 		;;
 	esac
 done
@@ -125,25 +131,36 @@ GITHUBURL="git@github.com:i-MSCP/imscp.git"
 BUILDFOLDER="imscp-${TARGETVERSION}"
 RELEASEFOLDER="imscp-${TARGETVERSION}"
 ARCHIVESFOLDER="archives"
-FTPFOLDER="i-MSCP-"${TARGETVERSION}
+FTPFOLDER="i-MSCP-${TARGETVERSION}"
 CHANGELOGMSG="\n\n`date -u +%Y-%m-%d`: ${RELEASEMANAGER}\n\t- RELEASE i-MSCP ${TARGETVERSION}"
+CHANGELOGMSG2=$(cat <<EOF
+~~~~~~~~~~~~~~~~
+
+------------------------------------------------------------------------------------------------------------------------
+Git ${BRANCH}
+------------------------------------------------------------------------------------------------------------------------
+
+Tickets:
+EOF
+)
 
 echo ""
-echo "NEW RELEASE ${TARGETVERSION} WILL BE CREATED. THIS CAN TAKE SOME TIME. PLEASE WAIT..."
+echo "NEW RELEASE ${TARGETVERSION} WILL BE CREATED FROM ${BRANCH} BRANCH. THIS CAN TAKE SOME TIME. PLEASE WAIT..."
 echo ""
 
 $SUDO aptitude update
-$SUDO aptitude install git-core rpl bzip2 zip p7zip gettext python-setuptools
+$SUDO aptitude install perl-base git-core bzip2 zip p7zip gettext python-setuptools
 $SUDO easy_install --upgrade transifex-client
 
 if [ ! -d "./${GITFOLDER}" ]; then
-	echo "Cloning i-MSCP main repository..."
-	git clone ${GITHUBURL} ${GITFOLDER}
+	echo "Cloning i-MSCP repository..."
+	git clone -b ${BRANCH} ${GITHUBURL} ${GITFOLDER}
 	cd ${GITFOLDER}
 else
 	echo "Pull changes from github..."
 	cd ${GITFOLDER}
 	git pull
+	git checkout ${BRANCH}
 
 	# Cleanup
 	git checkout .
@@ -158,22 +175,21 @@ echo ""
 echo "RELEASE PREPARATION"
 echo ""
 
-# Builddate
+# Build Date
 CURRENTBUILDDATE=$(grep '^BuildDate =' $IMSCPCONF | cut -d "=" -f 2 | sed 's/ //g')
 TARGETBUILDDATE=$(date -u +"%Y%m%d")
 
 echo "Updating CHANGELOG file..."
-sed -i -nr '1h;1!H;${;g;s/('"Git Master"'\n-+)/\1'"${CHANGELOGMSG}"'/g;p;}' ./CHANGELOG
-rpl -R 'Git Master' "${TARGETVERSION}" ./CHANGELOG
+sed -i -nr '1h;1!H;${;g;s/('"Git ${BRANCH}"'\n-+)/\1'"${CHANGELOGMSG}"'/g;p;}' ./CHANGELOG
+sed -i "s/Git ${BRANCH}/${TARGETVERSION}/" ./CHANGELOG
 
 echo "Updating version in imscp.conf and INSTALL files..."
-rpl -R 'Git Master' "${TARGETVERSION}" configs/*/imscp.conf
-rpl -R 'Git Master' "${TARGETVERSION}" ./docs/*/INSTALL
-rpl -R 'imscp-archive' "imscp-${TARGETVERSION}" ./docs/*/INSTALL
+sed -i "s/Version\s=.*/Version = ${TARGETVERSION}/" configs/*/imscp.conf
+sed -i "s/<verion>/${TARGETVERSION}/g" ./docs/*/INSTALL
 
 echo "Updating BuildDate in imscp.conf and latest.txt files..."
-rpl -R "BuildDate = ${CURRENTBUILDDATE}" "BuildDate = ${TARGETBUILDDATE}" configs/*/imscp.conf
-rpl -R "${CURRENTBUILDDATE}" "${TARGETBUILDDATE}" ./latest.txt
+sed -i "s/${CURRENTBUILDDATE}/${TARGETBUILDDATE}/" configs/*/imscp.conf
+sed -i "s/${CURRENTBUILDDATE}/${TARGETBUILDDATE}/" ./latest.txt
 
 echo ""
 echo "UPDATING TRANSLATION FILES"
@@ -182,7 +198,7 @@ echo ""
 echo "Creating $HOME/.transifexrc file..."
 
 if [ -e "$HOME/.transifexrc" ]; then
-    rm -rf $HOME/.transifexrc
+	rm -rf $HOME/.transifexrc
 fi
 
 touch $HOME/.transifexrc
@@ -199,7 +215,10 @@ sh makemsgs
 
 echo "Pushing new portable object template file on Transifex..."
 cd ..
-tx push -s
+
+if [ -z "$DRYRUN" ]; then
+    tx push -s
+fi
 
 echo "Getting last available portable object files from Transifex..."
 tx pull -af
@@ -215,14 +234,33 @@ echo "COMMIT CHANGES TO GITHUB"
 echo ""
 
 git add .
-git commit -m "Preparation for the ${TARGETVERSION} release"
-git push $DRYRUN
+git commit -m "Preparation for release: ${TARGETVERSION}"
+git push origin ${BRANCH}:${BRANCH} $DRYRUN
 
 echo "New git tag $TARGETVERSION for the i-MSCP $TARGETVERSION release will be added on github";
 
-git tag -f ${TARGETVERSION} -m "i-MSCP $TARGETVERSION release"
+git tag -f ${TARGETVERSION} -m "i-MSCP $TARGETVERSION release" origin/${BRANCH}
 git push origin ${TARGETVERSION} $DRYRUN
 git pull
+
+if [ -z "$DRYRUN" ]; then
+    git tag -d ${TARGETVERSION}
+fi
+
+echo ""
+echo "GIT BRANCH PREPARATION"
+echo ""
+
+echo "Updating CHANGELOG file..."
+perl -i -pe 's/~+/'"$CHANGELOGMSG2"'/' ./CHANGELOG
+
+echo "Updating version in imscp.conf and INSTALL files..."
+sed -i "s/Version\s=.*/Version = Git ${BRANCH}/" configs/*/imscp.conf
+sed -i "s/${TARGETVERSION}/<verion>/g" ./docs/*/INSTALL
+
+git add .
+git commit -m "Update for Git ${BRANCH}"
+git push origin ${BRANCH}:${BRANCH} $DRYRUN
 
 cd ..
 
@@ -262,7 +300,7 @@ echo ""
 echo "Creating ftp batch file..."
 
 if [ -e "./ftpbatch.sh" ]; then
-    rm -f ./ftpbatch.sh
+	rm -f ./ftpbatch.sh
 fi
 
 touch ./ftpbatch.sh
