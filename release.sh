@@ -145,11 +145,11 @@ EOF
 )
 
 echo ""
-echo "NEW RELEASE ${TARGETVERSION} WILL BE CREATED FROM ${BRANCH} BRANCH. THIS CAN TAKE SOME TIME. PLEASE WAIT..."
+echo "NEW RELEASE ${TARGETVERSION} WILL BE CREATED FROM ${BRANCH} BRANCH."
 echo ""
 
-$SUDO aptitude update
-$SUDO aptitude install perl-base git-core bzip2 zip p7zip gettext python-setuptools
+$SUDO apt-get update
+$SUDO apt-get install perl-base git-core bzip2 zip p7zip gettext python-setuptools
 $SUDO easy_install --upgrade transifex-client
 
 if [ ! -d "./${GITFOLDER}" ]; then
@@ -157,18 +157,24 @@ if [ ! -d "./${GITFOLDER}" ]; then
 	git clone -b ${BRANCH} ${GITHUBURL} ${GITFOLDER}
 	cd ${GITFOLDER}
 else
-	echo "Pull changes from github..."
 	cd ${GITFOLDER}
-	git pull
+
+    echo "Checkout ${BRANCH} branch..."
+
 	git checkout ${BRANCH}
 
-	# Cleanup
+    echo "Cleanup ${BRANCH} branch..."
+
 	git checkout .
 	git clean -f -d
 
 	while git status | grep -q "ahead"; do
 		git reset --hard HEAD^
 	done
+
+    echo "Pull changes from github..."
+
+    git pull
 fi
 
 echo ""
@@ -187,7 +193,7 @@ echo "Updating version in imscp.conf and INSTALL files..."
 sed -i "s/Version\s=.*/Version = ${TARGETVERSION}/" configs/*/imscp.conf
 sed -i "s/<verion>/${TARGETVERSION}/g" ./docs/*/INSTALL
 
-echo "Updating BuildDate in imscp.conf and latest.txt files..."
+echo "Updating build date in imscp.conf and latest.txt files..."
 sed -i "s/${CURRENTBUILDDATE}/${TARGETBUILDDATE}/" configs/*/imscp.conf
 sed -i "s/${CURRENTBUILDDATE}/${TARGETBUILDDATE}/" ./latest.txt
 
@@ -234,16 +240,16 @@ echo "COMMIT CHANGES TO GITHUB"
 echo ""
 
 git add .
-git commit -m "Preparation for release: ${TARGETVERSION}"
+git commit -a -m "Preparation for new release: ${TARGETVERSION}"
 git push origin ${BRANCH}:${BRANCH} $DRYRUN
 
-echo "New git tag $TARGETVERSION for the i-MSCP $TARGETVERSION release will be added on github";
+echo "New git tag $TARGETVERSION for i-MSCP $TARGETVERSION will be added on github";
 
 git tag -f ${TARGETVERSION} -m "i-MSCP $TARGETVERSION release" origin/${BRANCH}
 git push origin ${TARGETVERSION} $DRYRUN
 git pull
 
-if [ -z "$DRYRUN" ]; then
+if [ ! -z "$DRYRUN" ]; then
     git tag -d ${TARGETVERSION}
 fi
 
