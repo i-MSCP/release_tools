@@ -55,8 +55,8 @@ usage() {
 	echo "  -b  Git branch onto operate (default to stable)."
 	echo "  -r  i-MSCP release (such as 1.1.0-rc1)."
 	echo "  -t  Transifex credentials provided as 'username:password'."
-	echo "  -m  Release manager name (default to Torsten Widmann)."
-	echo "  -f  Sourceforge username (default to goover)."
+	echo "  -m  Release manager name (default to Laurent Declercq)."
+	echo "  -f  Sourceforge username (default to nuxwin)."
 	echo "  -s  Whether or not use sudo for the restricted commands."
 	echo "  -d  Do everything except actually send the updates on both Github and Sourceforge."
 	echo "  -h  Show this help."
@@ -66,7 +66,7 @@ usage() {
 
 # Set default option values
 RELEASEMANAGER="Laurent Declercq"
-FTPUSER=""
+FTPUSER="nuxwin"
 TRANSIFEX=""
 TARGETVERSION=""
 SUDO=""
@@ -76,7 +76,7 @@ BRANCH="stable"
 # Parse options
 if [ "$#" -eq "1" -a "$1" = "-h" ]; then usage; fi
 
-while getopts "b:f:m:r:t:sd" option;
+while getopts ":b:f:m:r:t:sd" option;
 do
 	case $option in
 		b)
