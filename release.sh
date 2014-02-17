@@ -159,11 +159,11 @@ if [ ! -d "./${GITFOLDER}" ]; then
 else
 	cd ${GITFOLDER}
 
-    echo "Checkout ${BRANCH} branch..."
+	echo "Checkout ${BRANCH} branch..."
 
 	git checkout ${BRANCH}
 
-    echo "Cleanup ${BRANCH} branch..."
+	echo "Cleanup ${BRANCH} branch..."
 
 	git checkout .
 	git clean -f -d
@@ -172,7 +172,7 @@ else
 		git reset --hard HEAD^
 	done
 
-    echo "Pull changes from github..."
+	echo "Pull changes from github..."
 
     git pull
 fi
@@ -190,11 +190,11 @@ sed -i -nr '1h;1!H;${;g;s/('"Git ${BRANCH}"'\n-+)/\1'"${CHANGELOGMSG}"'/g;p;}' .
 sed -i "s/Git ${BRANCH}/${TARGETVERSION}/" ./CHANGELOG
 
 echo "Updating version in imscp.conf and INSTALL files..."
-sed -i "s/Version\s=.*/Version = ${TARGETVERSION}/" configs/*/imscp.conf
-sed -i "s/<verion>/${TARGETVERSION}/g" ./docs/*/INSTALL
+sed -i "s/Version\s=.*/Version = ${TARGETVERSION}/" ./configs/*/imscp.conf
+sed -i "s/<version>/${TARGETVERSION}/g" ./docs/*/INSTALL
 
 echo "Updating build date in imscp.conf and latest.txt files..."
-sed -i "s/${CURRENTBUILDDATE}/${TARGETBUILDDATE}/" configs/*/imscp.conf
+sed -i "s/${CURRENTBUILDDATE}/${TARGETBUILDDATE}/" ./configs/*/imscp.conf
 sed -i "s/${CURRENTBUILDDATE}/${TARGETBUILDDATE}/" ./latest.txt
 
 echo ""
@@ -261,10 +261,9 @@ echo "Updating CHANGELOG file..."
 perl -i -pe 's/~+/'"$CHANGELOGMSG2"'/' ./CHANGELOG
 
 echo "Updating version in imscp.conf and INSTALL files..."
-sed -i "s/Version\s=.*/Version = Git ${BRANCH}/" configs/*/imscp.conf
-sed -i "s/${TARGETVERSION}/<verion>/g" ./docs/*/INSTALL
+sed -i "s/Version\s=.*/Version = Git ${BRANCH}/" ./configs/*/imscp.conf
+sed -i "s/${TARGETVERSION}/<version>/g" ./docs/*/INSTALL
 
-git add .
 git commit -m "Update for Git ${BRANCH}"
 git push origin ${BRANCH}:${BRANCH} $DRYRUN
 
