@@ -264,7 +264,7 @@ echo "Updating version in imscp.conf and INSTALL files..."
 sed -i "s/Version\s=.*/Version = Git ${BRANCH}/" ./configs/*/imscp.conf
 sed -i "s/${TARGETVERSION}/<version>/g" ./docs/*/INSTALL
 
-git commit -m "Update for Git ${BRANCH}"
+git commit -a -m "Update for Git ${BRANCH}"
 git push origin ${BRANCH}:${BRANCH} $DRYRUN
 
 cd ..
