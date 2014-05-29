@@ -1,6 +1,6 @@
 #!/bin/sh
 # i-MSCP - internet Multi Server Control Panel
-# Copyright (C) 2010-2013 by internet Multi Server Control Panel
+# Copyright (C) 2010-2014 by internet Multi Server Control Panel
 #
 # @author    Laurent Declercq <l.declercq@nuxwin.com>
 # @link      http://i-mscp.net
@@ -24,18 +24,6 @@
 #
 # You must have write access to the i-MSCP git repository (just import your ssh key if needed)
 # Usage example: ./release.sh -b stable -r 1.1.1 -t 'username:password' -m 'Laurent Declercq' -f nuxwin -s -d
-#
-# Will in order:
-#  - Clone the i-MSCP git repository or pull changes from it if already there
-#  - Switch to the specified branch if needed
-#  - Prepare the release by updating version and builddate in all files
-#  - Push the iMSCP.pot file on Transifex
-#  - Pull all *.po files from Transifex
-#  - Update the CHANGELOG to add release info (date, release manager name and version)
-#  - Commit all changes on the remote i-MSCP git repository
-#  - Create a git tag for the new release on the remote i-MSCP git repository
-#  - Create all archives to upload on Sourceforge
-#  - Upload all archives on Sourceforge
 #
 # Script tested with Bash and Dash.
 #
@@ -171,7 +159,7 @@ else
 		git reset --hard HEAD^
 	done
 
-	echo "Pull changes from github..."
+	echo "Pull changes from GitHub..."
 
     git pull
 fi
@@ -184,15 +172,16 @@ echo ""
 CURRENTBUILDDATE=$(grep '^BuildDate =' $IMSCPCONF | cut -d "=" -f 2 | sed 's/ //g')
 TARGETBUILDDATE=$(date -u +"%Y%m%d")
 
-echo "Updating CHANGELOG file..."
+echo "Updating CHANGELOG..."
 sed -i -nr '1h;1!H;${;g;s/('"Git ${BRANCH}"'\n-+)/\1'"${CHANGELOGMSG}"'/g;p;}' ./CHANGELOG
 sed -i "s/Git ${BRANCH}/${TARGETVERSION}/" ./CHANGELOG
 
-echo "Updating version in imscp.conf and INSTALL files..."
+echo "Updating version..."
 sed -i "s/Version\s=.*/Version = ${TARGETVERSION}/" ./configs/*/imscp.conf
 sed -i "s/<version>/${TARGETVERSION}/g" ./docs/*/INSTALL
+sed -i "s/<version>/${TARGETVERSION}/g" ./i18n/tools/makemsgs
 
-echo "Updating build date in imscp.conf and latest.txt files..."
+echo "Updating build date..."
 sed -i "s/${CURRENTBUILDDATE}/${TARGETBUILDDATE}/" ./configs/*/imscp.conf
 sed -i "s/${CURRENTBUILDDATE}/${TARGETBUILDDATE}/" ./latest.txt
 
@@ -202,8 +191,8 @@ echo ""
 
 echo "Creating $HOME/.transifexrc file..."
 
-if [ -e "$HOME/.transifexrc" ]; then
-	rm -rf $HOME/.transifexrc
+if [ -f "$HOME/.transifexrc" ]; then
+	rm $HOME/.transifexrc
 fi
 
 touch $HOME/.transifexrc
@@ -256,12 +245,13 @@ echo ""
 echo "GIT BRANCH PREPARATION"
 echo ""
 
-echo "Updating CHANGELOG file..."
+echo "Updating CHANGELOG..."
 perl -i -pe 's/~+/'"$CHANGELOGMSG2"'/' ./CHANGELOG
 
-echo "Updating version in imscp.conf and INSTALL files..."
+echo "Updating version..."
 sed -i "s/Version\s=.*/Version = Git ${BRANCH}/" ./configs/*/imscp.conf
 sed -i "s/${TARGETVERSION}/<version>/g" ./docs/*/INSTALL
+sed -i "s/${TARGETVERSION}/<version>/g" ./i18n/tools/makemsgs
 
 git commit -a -m "Update for Git ${BRANCH}"
 git push origin ${BRANCH}:${BRANCH} $DRYRUN
