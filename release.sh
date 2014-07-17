@@ -122,7 +122,7 @@ ARCHIVESFOLDER="archives"
 FTPFOLDER="i-MSCP-${TARGETVERSION}"
 CHANGELOGMSG="\n\n`date -u +%Y-%m-%d`: ${RELEASEMANAGER}\n\tRELEASE i-MSCP ${TARGETVERSION}"
 CHANGELOGMSG2=$(cat <<EOF
-~~~~~~~~~~~~~~~~
+i-MSCP ChangeLog
 
 ------------------------------------------------------------------------------------------------------------------------
 Git ${BRANCH}
@@ -246,7 +246,7 @@ echo "GIT BRANCH PREPARATION"
 echo ""
 
 echo "Updating CHANGELOG..."
-perl -i -pe 's/~+/'"$CHANGELOGMSG2"'/' ./CHANGELOG
+perl -i -pe 's/i-MSCP ChangeLog/'"$CHANGELOGMSG2"'/' ./CHANGELOG
 
 echo "Updating version..."
 sed -i "s/Version\s=.*/Version = Git ${BRANCH}/" ./configs/*/imscp.conf
