@@ -23,24 +23,24 @@
 # IMPORTANT
 #
 # You must have write access to the i-MSCP git repository (just import your ssh key if needed)
-# Usage example: ./release.sh -b stable -r 1.1.1 -t 'username:password' -m 'Laurent Declercq' -f nuxwin -s -d
-#
-# Script tested with Bash and Dash.
+# Usage example: ./release.sh -b 1.1.x -r 1.1.14 -t 'username:password' -m 'Laurent Declercq' -f nuxwin -s -d
 #
 
 set -e
 
 clear
 
+CWD=$(pwd)
+
 # Command line options
 
 usage() {
 	NAME=`basename $0`
-	echo "Usage: bash $NAME -r <RELEASE> -t <TRANSIFEX_CREDENTIALS> [OPTIONS]"
+	echo "Usage: bash $NAME -r <RELEASE> -t <TRANSIFEX_CREDENTIALS> [OPTIONS] ..."
 	echo "Release new i-MSCP version on github and sourceforge"
 	echo ""
 	echo "Options:"
-	echo "  -b  Git branch onto operate (default to stable)."
+	echo "  -b  Git branch onto operate (default to develop)."
 	echo "  -r  i-MSCP release (such as 1.1.0-rc1)."
 	echo "  -t  Transifex credentials provided as 'username:password'."
 	echo "  -m  Release manager name (default to Laurent Declercq)."
@@ -59,7 +59,7 @@ TRANSIFEX=""
 TARGETVERSION=""
 SUDO=""
 DRYRUN=""
-BRANCH="stable"
+BRANCH="develop"
 
 # Parse options
 if [ "$#" -eq "1" -a "$1" = "-h" ]; then usage; fi
@@ -136,15 +136,16 @@ echo "NEW RELEASE ${TARGETVERSION} WILL BE CREATED FROM ${BRANCH} BRANCH."
 echo ""
 
 $SUDO apt-get update
-$SUDO apt-get install perl-base git-core bzip2 zip p7zip gettext python-setuptools
+$SUDO apt-get install perl git-core bzip2 zip p7zip gettext python-setuptools
 $SUDO easy_install --upgrade transifex-client
 
-if [ ! -d "./${GITFOLDER}" ]; then
+if [ ! -d "${CWD}/${GITFOLDER}" ]; then
 	echo "Cloning i-MSCP repository..."
+
 	git clone -b ${BRANCH} ${GITHUBURL} ${GITFOLDER}
-	cd ${GITFOLDER}
+	cd ${CWD}/${GITFOLDER}
 else
-	cd ${GITFOLDER}
+	cd ${CWD}/${GITFOLDER}
 
 	echo "Checkout ${BRANCH} branch..."
 
@@ -173,15 +174,18 @@ CURRENTBUILDDATE=$(grep '^BuildDate =' $IMSCPCONF | cut -d "=" -f 2 | sed 's/ //
 TARGETBUILDDATE=$(date -u +"%Y%m%d")
 
 echo "Updating CHANGELOG..."
+
 sed -i -nr '1h;1!H;${;g;s/('"Git ${BRANCH}"'\n-+)/\1'"${CHANGELOGMSG}"'/g;p;}' ./CHANGELOG
 sed -i "s/Git ${BRANCH}/${TARGETVERSION}/" ./CHANGELOG
 
 echo "Updating version..."
+
 sed -i "s/Version\s=.*/Version = ${TARGETVERSION}/" ./configs/*/imscp.conf
 sed -i "s/<version>/${TARGETVERSION}/g" ./docs/*/INSTALL
 sed -i "s/<version>/${TARGETVERSION}/g" ./i18n/tools/makemsgs
 
 echo "Updating build date..."
+
 sed -i "s/${CURRENTBUILDDATE}/${TARGETBUILDDATE}/" ./configs/*/imscp.conf
 sed -i "s/${CURRENTBUILDDATE}/${TARGETBUILDDATE}/" ./latest.txt
 
@@ -204,28 +208,33 @@ printf "%b\n" "token = " >> $HOME/.transifexrc
 printf "%b\n" "username = ${TRANSIFEXUSER}" >> $HOME/.transifexrc
 
 echo "Updating portable object template file with new translation strings..."
-cd i18n/tools
+
+cd ${CWD}/${GITFOLDER}/i18n/tools
+
 sh makemsgs
 
 echo "Pushing new portable object template file on Transifex..."
-cd ..
+
+cd ${CWD}/${GITFOLDER}/i18n
 
 if [ -z "$DRYRUN" ]; then
     tx push -s
 fi
 
 echo "Getting last available portable object files from Transifex..."
+
 tx pull -af
 
 echo "Compiling object machines files..."
-cd tools
-sh compilePo
 
-cd ../..
+cd ${CWD}/${GITFOLDER}/i18n/tools
+sh compilePo
 
 echo ""
 echo "COMMIT CHANGES TO GITHUB"
 echo ""
+
+cd ${CWD}/${GITFOLDER}
 
 git add .
 git commit -a -m "Preparation for new release: ${TARGETVERSION}"
@@ -242,48 +251,66 @@ if [ ! -z "$DRYRUN" ]; then
 fi
 
 echo ""
-echo "GIT BRANCH PREPARATION"
+echo "CREATING RELEASE FOLDER"
 echo ""
 
-echo "Updating CHANGELOG..."
+cd ${CWD}
+
+rm -fr $BUILDFOLDER
+cp -r $GITFOLDER $BUILDFOLDER
+$SUDO rm -fr $BUILDFOLDER/.git
+
+echo ""
+echo "GIT BRANCH CLEANUP"
+echo ""
+
+cd ${CWD}/${GITFOLDER}
+
+echo "Cleanup CHANGELOG..."
+
 perl -i -pe 's/i-MSCP ChangeLog/'"$CHANGELOGMSG2"'/' ./CHANGELOG
 
-echo "Updating version..."
+echo "Cleanup version..."
+
 sed -i "s/Version\s=.*/Version = Git ${BRANCH}/" ./configs/*/imscp.conf
 sed -i "s/${TARGETVERSION}/<version>/g" ./docs/*/INSTALL
 sed -i "s/${TARGETVERSION}/<version>/g" ./i18n/tools/makemsgs
 
+echo ""
+echo "COMMIT CHANGES TO GITHUB"
+echo ""
+
 git commit -a -m "Update for Git ${BRANCH}"
 git push origin ${BRANCH}:${BRANCH} $DRYRUN
-
-cd ..
 
 echo ""
 echo "CREATING ARCHIVES TO UPLOAD ON SOURCEFORGE"
 echo ""
 
-echo "Creating release folder"
-rm -fr $BUILDFOLDER
-cp -r $GITFOLDER $BUILDFOLDER
-$SUDO rm -fr $BUILDFOLDER/.git
+cd ${CWD}
 
 echo "Creating archives folder"
+
 rm -fr $ARCHIVESFOLDER;
 mkdir $ARCHIVESFOLDER;
 
 echo "Creating ${ARCHIVESFOLDER}/$RELEASEFOLDER.tar.bz2 archive..."
+
 tar cjf ${ARCHIVESFOLDER}/${RELEASEFOLDER}.tar.bz2 ./$BUILDFOLDER
 md5sum ${ARCHIVESFOLDER}/${RELEASEFOLDER}.tar.bz2 > ./${ARCHIVESFOLDER}/${RELEASEFOLDER}.tar.bz2.sum
 
 echo "Creating ${ARCHIVESFOLDER}/$RELEASEFOLDER.tar.gz archive..."
+
 tar czf ${ARCHIVESFOLDER}/${RELEASEFOLDER}.tar.gz ./$BUILDFOLDER
 md5sum ${ARCHIVESFOLDER}/${RELEASEFOLDER}.tar.gz > ./${ARCHIVESFOLDER}/${RELEASEFOLDER}.tar.gz.sum
 
 echo "Creating ${ARCHIVESFOLDER}/$RELEASEFOLDER.zip archive..."
+
 zip -9rq ${ARCHIVESFOLDER}/${RELEASEFOLDER}.zip ./$BUILDFOLDER
 md5sum ${ARCHIVESFOLDER}/${RELEASEFOLDER}.zip > ./${ARCHIVESFOLDER}/${RELEASEFOLDER}.zip.sum
 
 echo "Creating ${ARCHIVESFOLDER}/$RELEASEFOLDER.7z archive..."
+
 7zr a -bd ${ARCHIVESFOLDER}/${RELEASEFOLDER}.7z ./$BUILDFOLDER
 md5sum ${ARCHIVESFOLDER}/${RELEASEFOLDER}.7z > ./${ARCHIVESFOLDER}/${RELEASEFOLDER}.7z.sum
 
