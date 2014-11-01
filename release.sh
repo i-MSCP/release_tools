@@ -40,7 +40,7 @@ usage() {
 	echo "Release new i-MSCP version on github and sourceforge"
 	echo ""
 	echo "Options:"
-	echo "  -b  Git branch onto operate (default to develop)."
+	echo "  -b  Git branch onto operate."
 	echo "  -r  i-MSCP release (such as 1.1.0-rc1)."
 	echo "  -t  Transifex credentials provided as 'username:password'."
 	echo "  -m  Release manager name (default to Laurent Declercq)."
@@ -59,14 +59,14 @@ TRANSIFEX=""
 TARGETVERSION=""
 SUDO=""
 DRYRUN=""
-BRANCH="develop"
+BRANCH=""
 
 # Parse options
 if [ "$#" -eq "1" -a "$1" = "-h" ]; then usage; fi
 
 while getopts ":b:f:m:r:t:sd" option;
 do
-	case $option in
+	case ${option} in
 		b)
 			BRANCH=$OPTARG
 		;;
@@ -101,7 +101,11 @@ do
 	esac
 done
 
-if [ -z "${TARGETVERSION}" ]; then
+
+if [ -z "${BRANCH}" ]; then
+	echo "-b option is missing" >&2
+	usage
+elif [ -z "${TARGETVERSION}" ]; then
 	echo "-r option is missing" >&2
 	usage
 elif [ -z "${TRANSIFEX}" ]; then
@@ -113,13 +117,13 @@ elif [ -z "${TRANSIFEXUSER}" ] || [ -z "${TRANSIFEXPWD}" ]; then
 fi
 
 # Variables
-IMSCPCONF="configs/debian/imscp.conf"
 GITFOLDER="imscpgit"
 GITHUBURL="git@github.com:i-MSCP/imscp.git"
 BUILDFOLDER="imscp-${TARGETVERSION}"
 RELEASEFOLDER="imscp-${TARGETVERSION}"
 ARCHIVESFOLDER="archives"
 FTPFOLDER="i-MSCP-${TARGETVERSION}"
+TARGETBUILDDATE=$(date -u +"%Y%m%d")
 CHANGELOGMSG="\n\n`date -u +%Y-%m-%d`: ${RELEASEMANAGER}\n\tRELEASE i-MSCP ${TARGETVERSION}"
 CHANGELOGMSG2=$(cat <<EOF
 i-MSCP ChangeLog
@@ -131,194 +135,171 @@ Git ${BRANCH}
 EOF
 )
 
-echo ""
-echo "NEW RELEASE ${TARGETVERSION} WILL BE CREATED FROM ${BRANCH} BRANCH."
-echo ""
+########################################################################################################################
+# Packages installation
+########################################################################################################################
 
-$SUDO apt-get update
-$SUDO apt-get install perl git-core bzip2 zip p7zip gettext python-setuptools
-$SUDO easy_install --upgrade transifex-client
+${SUDO} apt-get update && ${SUDO} apt-get install perl git-core bzip2 zip p7zip gettext python-setuptools
+${SUDO} easy_install --upgrade transifex-client
+
+########################################################################################################################
+# Setup working environment
+########################################################################################################################
 
 if [ ! -d "${CWD}/${GITFOLDER}" ]; then
-	echo "Cloning i-MSCP repository..."
-
-	git clone -b ${BRANCH} ${GITHUBURL} ${GITFOLDER}
-	cd ${CWD}/${GITFOLDER}
-else
-	cd ${CWD}/${GITFOLDER}
-
-	echo "Checkout ${BRANCH} branch..."
-
-	git checkout ${BRANCH}
-
-	echo "Cleanup ${BRANCH} branch..."
-
-	git checkout .
-	git clean -f -d
-
-	while git status | grep -q "ahead"; do
-		git reset --hard HEAD^
-	done
-
-	echo "Pull changes from GitHub..."
-
-    git pull
+	# Clone repository
+	git clone ${GITHUBURL} ${GITFOLDER}
 fi
 
-echo ""
-echo "RELEASE PREPARATION"
-echo ""
+cd ${CWD}/${GITFOLDER}
 
-# Build Date
-CURRENTBUILDDATE=$(grep '^BuildDate =' $IMSCPCONF | cut -d "=" -f 2 | sed 's/ //g')
-TARGETBUILDDATE=$(date -u +"%Y%m%d")
+# Cleanup current (local) branch
+git checkout .
+git clean -f -d
 
-echo "Updating CHANGELOG..."
+# Switch to the selected (local) branch
+git checkout ${BRANCH}
+
+# Remove any local change
+while git status | grep -q "ahead"; do
+	git reset --hard HEAD^
+done
+
+# Pull changes from remote repository
+git pull
+
+########################################################################################################################
+# Release preparation
+########################################################################################################################
 
 sed -i -nr '1h;1!H;${;g;s/('"Git ${BRANCH}"'\n-+)/\1'"${CHANGELOGMSG}"'/g;p;}' ./CHANGELOG
 sed -i "s/Git ${BRANCH}/${TARGETVERSION}/" ./CHANGELOG
-
-echo "Updating version..."
-
-sed -i "s/Version\s=.*/Version = ${TARGETVERSION}/" ./configs/*/imscp.conf
+sed -i "s/\(Version\s=\).*/\1 ${TARGETVERSION}/" ./configs/*/imscp.conf
 sed -i "s/<version>/${TARGETVERSION}/g" ./docs/*/INSTALL
 sed -i "s/<version>/${TARGETVERSION}/g" ./i18n/tools/makemsgs
+sed -i "s/\(BuildDate\s=\).*/\1 ${TARGETBUILDDATE}/" ./configs/*/imscp.conf
+echo "${TARGETBUILDDATE}" > ./latest.txt
 
-echo "Updating build date..."
+########################################################################################################################
+# Translation files
+########################################################################################################################
 
-sed -i "s/${CURRENTBUILDDATE}/${TARGETBUILDDATE}/" ./configs/*/imscp.conf
-sed -i "s/${CURRENTBUILDDATE}/${TARGETBUILDDATE}/" ./latest.txt
-
-echo ""
-echo "UPDATING TRANSLATION FILES"
-echo ""
-
-echo "Creating $HOME/.transifexrc file..."
+# Creating transifex configuration file
 
 if [ -f "$HOME/.transifexrc" ]; then
 	rm $HOME/.transifexrc
 fi
 
 touch $HOME/.transifexrc
-
 printf "%b\n" "[https://www.transifex.com]" >> $HOME/.transifexrc
 printf "%b\n" "hostname = https://www.transifex.com" >> $HOME/.transifexrc
 printf "%b\n" "password = ${TRANSIFEXPWD}" >> $HOME/.transifexrc
 printf "%b\n" "token = " >> $HOME/.transifexrc
 printf "%b\n" "username = ${TRANSIFEXUSER}" >> $HOME/.transifexrc
 
-echo "Updating portable object template file with new translation strings..."
-
-cd ${CWD}/${GITFOLDER}/i18n/tools
-
-sh makemsgs
-
-echo "Pushing new portable object template file on Transifex..."
-
 cd ${CWD}/${GITFOLDER}/i18n
 
-if [ -z "$DRYRUN" ]; then
-    tx push -s
-fi
+# Updating translation files
+# This must be done prior any resource translation file update to avoid overriding of last translator names
 
-echo "Getting last available portable object files from Transifex..."
-
+# Pull latest translation files from Transifex ( update *.po files )
 tx pull -af
 
-echo "Compiling object machines files..."
-
 cd ${CWD}/${GITFOLDER}/i18n/tools
+
+# Compile mo files ( create *.mo files using *.po files )
 sh compilePo
 
-echo ""
-echo "COMMIT CHANGES TO GITHUB"
-echo ""
+# Updating translation resource file on transifex
+
+# Re-creating translation resource file ( iMSCP.pot ) by extracting translation strings from source
+sh makemsgs
+
+if [ -z "$DRYRUN" ]; then
+	cd ${CWD}/${GITFOLDER}/i18n
+
+	# Upload new translation resource file (only if needed)
+	STAMP="$(git diff --numstat iMSCP.pot | cut -f 1)"
+	if [ -n ${STAMP} ] && [ ${STAMP} -gt 1 ]; then
+    	tx push -s
+	else
+		git checkout iMSCP.pot
+	fi
+fi
+
+########################################################################################################################
+# Commit changes on Github
+########################################################################################################################
 
 cd ${CWD}/${GITFOLDER}
 
 git add .
 git commit -a -m "Preparation for new release: ${TARGETVERSION}"
-git push origin ${BRANCH}:${BRANCH} $DRYRUN
+git push origin ${BRANCH}:${BRANCH} ${DRYRUN}
 
-echo "New git tag $TARGETVERSION for i-MSCP $TARGETVERSION will be added on github";
-
+# Add git tag for new release
 git tag -f ${TARGETVERSION} -m "i-MSCP $TARGETVERSION release" origin/${BRANCH}
-git push origin ${TARGETVERSION} $DRYRUN
+git push origin ${TARGETVERSION} ${DRYRUN}
 git pull
 
-if [ ! -z "$DRYRUN" ]; then
+if [ -n "$DRYRUN" ]; then
     git tag -d ${TARGETVERSION}
 fi
 
-echo ""
-echo "CREATING RELEASE FOLDER"
-echo ""
+########################################################################################################################
+# Create release folder
+########################################################################################################################
 
 cd ${CWD}
 
-rm -fr $BUILDFOLDER
-cp -r $GITFOLDER $BUILDFOLDER
-$SUDO rm -fr $BUILDFOLDER/.git
+rm -fr ${BUILDFOLDER}
+cp -rp ${GITFOLDER} ${BUILDFOLDER}
+${SUDO} rm -fr ${BUILDFOLDER}/.git
 
-echo ""
-echo "GIT BRANCH CLEANUP"
-echo ""
+########################################################################################################################
+# Git branch update
+########################################################################################################################
 
 cd ${CWD}/${GITFOLDER}
 
-echo "Cleanup CHANGELOG..."
-
 perl -i -pe 's/i-MSCP ChangeLog/'"$CHANGELOGMSG2"'/' ./CHANGELOG
-
-echo "Cleanup version..."
-
-sed -i "s/Version\s=.*/Version = Git ${BRANCH}/" ./configs/*/imscp.conf
+sed -i "s/\(Version\s=\).*/\1 Git ${BRANCH}/" ./configs/*/imscp.conf
 sed -i "s/${TARGETVERSION}/<version>/g" ./docs/*/INSTALL
 sed -i "s/${TARGETVERSION}/<version>/g" ./i18n/tools/makemsgs
+sed -i "s/\(BuildDate\s=\).*/\1/" ./configs/*/imscp.conf
+echo "" > ./latest.txt
 
-echo ""
-echo "COMMIT CHANGES TO GITHUB"
-echo ""
+########################################################################################################################
+# Commit change on GitHub
+########################################################################################################################
 
 git commit -a -m "Update for Git ${BRANCH}"
-git push origin ${BRANCH}:${BRANCH} $DRYRUN
+git push origin ${BRANCH}:${BRANCH} ${DRYRUN}
 
-echo ""
-echo "CREATING ARCHIVES TO UPLOAD ON SOURCEFORGE"
-echo ""
+########################################################################################################################
+# Create release archives and md5sum files
+########################################################################################################################
 
 cd ${CWD}
 
-echo "Creating archives folder"
+rm -fr ${ARCHIVESFOLDER};
+mkdir ${ARCHIVESFOLDER};
 
-rm -fr $ARCHIVESFOLDER;
-mkdir $ARCHIVESFOLDER;
-
-echo "Creating ${ARCHIVESFOLDER}/$RELEASEFOLDER.tar.bz2 archive..."
-
-tar cjf ${ARCHIVESFOLDER}/${RELEASEFOLDER}.tar.bz2 ./$BUILDFOLDER
+tar cjf ${ARCHIVESFOLDER}/${RELEASEFOLDER}.tar.bz2 ./${BUILDFOLDER}
 md5sum ${ARCHIVESFOLDER}/${RELEASEFOLDER}.tar.bz2 > ./${ARCHIVESFOLDER}/${RELEASEFOLDER}.tar.bz2.sum
 
-echo "Creating ${ARCHIVESFOLDER}/$RELEASEFOLDER.tar.gz archive..."
-
-tar czf ${ARCHIVESFOLDER}/${RELEASEFOLDER}.tar.gz ./$BUILDFOLDER
+tar czf ${ARCHIVESFOLDER}/${RELEASEFOLDER}.tar.gz ./${BUILDFOLDER}
 md5sum ${ARCHIVESFOLDER}/${RELEASEFOLDER}.tar.gz > ./${ARCHIVESFOLDER}/${RELEASEFOLDER}.tar.gz.sum
 
-echo "Creating ${ARCHIVESFOLDER}/$RELEASEFOLDER.zip archive..."
-
-zip -9rq ${ARCHIVESFOLDER}/${RELEASEFOLDER}.zip ./$BUILDFOLDER
+zip -9rq ${ARCHIVESFOLDER}/${RELEASEFOLDER}.zip ./${BUILDFOLDER}
 md5sum ${ARCHIVESFOLDER}/${RELEASEFOLDER}.zip > ./${ARCHIVESFOLDER}/${RELEASEFOLDER}.zip.sum
 
-echo "Creating ${ARCHIVESFOLDER}/$RELEASEFOLDER.7z archive..."
-
-7zr a -bd ${ARCHIVESFOLDER}/${RELEASEFOLDER}.7z ./$BUILDFOLDER
+7zr a -bd ${ARCHIVESFOLDER}/${RELEASEFOLDER}.7z ./${BUILDFOLDER}
 md5sum ${ARCHIVESFOLDER}/${RELEASEFOLDER}.7z > ./${ARCHIVESFOLDER}/${RELEASEFOLDER}.7z.sum
 
-echo ""
-echo "UPLOADING ARCHIVES TO SOURCEFORGE"
-echo ""
-
-echo "Creating ftp batch file..."
+########################################################################################################################
+# Send file to sourceForge
+########################################################################################################################
 
 if [ -e "./ftpbatch.sh" ]; then
 	rm -f ./ftpbatch.sh
