@@ -215,17 +215,18 @@ sh compilePo
 # Re-creating translation resource file ( iMSCP.pot ) by extracting translation strings from source
 sh makemsgs
 
+# Revert back package version to <version>
+git checkout makemsgs
+
 if [ -z "$DRYRUN" ]; then
 	cd ${CWD}/${GITFOLDER}/i18n
-
-	# Upload new translation resource file (only if needed)
-	STAMP="$(git diff --numstat iMSCP.pot | cut -f 1)"
-	if [ -n ${STAMP} ] && [ ${STAMP} -gt 1 ]; then
-    	tx push -s
-	else
-		git checkout iMSCP.pot
-	fi
+	tx push -s
 fi
+
+cd ${CWD}/${GITFOLDER}/i18n
+
+# Pull latest translation files from Transifex again ( update *.po files )
+tx pull -af
 
 ########################################################################################################################
 # Commit changes on Github
@@ -265,7 +266,7 @@ cd ${CWD}/${GITFOLDER}
 perl -i -pe 's/i-MSCP ChangeLog/'"$CHANGELOGMSG2"'/' ./CHANGELOG
 sed -i "s/\(Version\s=\).*/\1 Git ${BRANCH}/" ./configs/*/imscp.conf
 sed -i "s/${TARGETVERSION}/<version>/g" ./docs/*/INSTALL
-sed -i "s/${TARGETVERSION}/<version>/g" ./i18n/tools/makemsgs
+#sed -i "s/${TARGETVERSION}/<version>/g" ./i18n/tools/makemsgs
 sed -i "s/\(BuildDate\s=\).*/\1/" ./configs/*/imscp.conf
 echo "" > ./latest.txt
 
