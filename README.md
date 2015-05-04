@@ -2,7 +2,7 @@
 
 Repository containing tools for i-MSCP
 
-## release.sh script
+## release.sh
 
 This script allows to release new i-MSCP version for the specified branch. In order, it will:
 
