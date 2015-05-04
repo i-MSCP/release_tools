@@ -21,7 +21,7 @@ This script allows to release new i-MSCP version for the specified branch. In or
 $ sh ./release.sh -b 1.2.x -r 1.2.3 -t '<transifex_username>:<transifex_password>' -m 'Laurent Declercq' -f nuxwin -s -d
 ```
 
-**Note:** You must have write access on both GitHub repository and SourceForge
+**Note:** You must have write access on both GitHub repository and SourceForge.
 
 ## translation.sh
 
@@ -39,4 +39,4 @@ This script allows to update i-MSCP core translation files for the specified i-M
 $ sh ./translation.sh -b 1.2.x -t '<transifex_username>:<transifex_password>' -s
 ```
 
-**Note:** You must have write access on both GitHub repository
+**Note:** You must have write access on GitHub repository.
