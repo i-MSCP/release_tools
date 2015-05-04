@@ -24,7 +24,6 @@
 #
 # You must have write access to the i-MSCP git repository (just import your ssh key if needed)
 # Usage example: ./release.sh -b 1.1.x -r 1.1.14 -t 'username:password' -m 'Laurent Declercq' -f nuxwin -s -d
-#
 
 set -e
 
@@ -33,7 +32,6 @@ clear
 CWD=$(pwd)
 
 # Command line options
-
 usage() {
 	NAME=`basename $0`
 	echo "Usage: bash $NAME -r <RELEASE> -t <TRANSIFEX_CREDENTIALS> [OPTIONS] ..."
@@ -61,7 +59,7 @@ SUDO=""
 DRYRUN=""
 BRANCH=""
 
-# Parse options
+# Parse command line options
 if [ "$#" -eq "1" -a "$1" = "-h" ]; then usage; fi
 
 while getopts ":b:f:m:r:t:sd" option;
@@ -157,6 +155,9 @@ cd ${CWD}/${GITFOLDER}
 git checkout .
 git clean -f -d
 
+# Update remote references
+git fetch
+
 # Switch to the selected (local) branch
 git checkout ${BRANCH}
 
@@ -184,7 +185,7 @@ echo "${TARGETBUILDDATE}" > ./latest.txt
 # Translation files
 ########################################################################################################################
 
-# Creating transifex configuration file
+# Create transifex configuration file
 
 if [ -f "$HOME/.transifexrc" ]; then
 	rm $HOME/.transifexrc
@@ -199,7 +200,7 @@ printf "%b\n" "username = ${TRANSIFEXUSER}" >> $HOME/.transifexrc
 
 cd ${CWD}/${GITFOLDER}/i18n
 
-# Updating translation files
+# Update translation files
 # This must be done prior any resource translation file update to avoid overriding of last translator names
 
 # Pull latest translation files from Transifex ( update *.po files )
@@ -210,9 +211,9 @@ cd ${CWD}/${GITFOLDER}/i18n/tools
 # Compile mo files ( create *.mo files using *.po files )
 sh compilePo
 
-# Updating translation resource file on transifex
+# Update translation resource file on transifex
 
-# Re-creating translation resource file ( iMSCP.pot ) by extracting translation strings from source
+# Re-create translation resource file ( iMSCP.pot ) by extracting translation strings from source
 sh makemsgs
 
 # Revert back package version to <version>
