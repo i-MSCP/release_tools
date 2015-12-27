@@ -175,9 +175,6 @@ sh compilePo
 # Re-create translation resource file ( iMSCP.pot ) by extracting translation strings from source
 sh makemsgs
 
-# Revert back package version to <version>
-git checkout makemsgs
-
 if [ -z "$DRYRUN" ]; then
 	# Push new translation resource file on transifex
 	cd ${CWD}/${GITFOLDER}/i18n

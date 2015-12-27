@@ -177,7 +177,6 @@ sed -i -nr '1h;1!H;${;g;s/('"Git ${BRANCH}"'\n-+)/\1'"${CHANGELOGMSG}"'/g;p;}' .
 sed -i "s/Git ${BRANCH}/${TARGETVERSION}/" ./CHANGELOG
 sed -i "s/\(Version\s=\).*/\1 ${TARGETVERSION}/" ./configs/*/imscp.conf
 sed -i "s/<version>/${TARGETVERSION}/g" ./docs/*/INSTALL
-sed -i "s/<version>/${TARGETVERSION}/g" ./i18n/tools/makemsgs
 sed -i "s/\(BuildDate\s=\).*/\1 ${TARGETBUILDDATE}/" ./configs/*/imscp.conf
 echo "${TARGETBUILDDATE}" > ./latest.txt
 
@@ -267,7 +266,6 @@ cd ${CWD}/${GITFOLDER}
 perl -i -pe 's/i-MSCP ChangeLog/'"$CHANGELOGMSG2"'/' ./CHANGELOG
 sed -i "s/\(Version\s=\).*/\1 Git ${BRANCH}/" ./configs/*/imscp.conf
 sed -i "s/${TARGETVERSION}/<version>/g" ./docs/*/INSTALL
-#sed -i "s/${TARGETVERSION}/<version>/g" ./i18n/tools/makemsgs
 sed -i "s/\(BuildDate\s=\).*/\1/" ./configs/*/imscp.conf
 echo "" > ./latest.txt
 
