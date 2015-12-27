@@ -26,7 +26,7 @@ This script allows to update i-MSCP core translation files for the specified i-M
 
 - Clone remote GitHub repository if needed
 - Update resource translation file on Transifex (pot file)
-- Pull lastest po files from Transifex
+- Pull latest po files from Transifex
 - Build machine object files 
 - Commit changes on GitHub 
 
