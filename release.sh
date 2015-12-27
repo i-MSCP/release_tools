@@ -5,7 +5,6 @@
 # @author    Laurent Declercq <l.declercq@nuxwin.com>
 # @link      http://i-mscp.net
 #
-# @license
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
 # as published by the Free Software Foundation; either version 2
@@ -20,27 +19,25 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA
 #
-# IMPORTANT
-#
+# IMPORTANT:
 # You must have write access to the i-MSCP git repository (just import your ssh key if needed)
-# Usage example: ./release.sh -b 1.1.x -r 1.1.14 -t 'username:password' -m 'Laurent Declercq' -f nuxwin -s -d
+# Usage example: ./release.sh -b 1.2.x -r 1.2.10 -m 'Laurent Declercq' -f nuxwin -s -d
 
 set -e
-
 clear
 
+# Get current working directory
 CWD=$(pwd)
 
 # Command line options
 usage() {
 	NAME=`basename $0`
-	echo "Usage: bash $NAME -r <RELEASE> -t <TRANSIFEX_CREDENTIALS> [OPTIONS] ..."
+	echo "Usage: bash $NAME -r <RELEASE> [OPTIONS] ..."
 	echo "Release new i-MSCP version on github and sourceforge"
 	echo ""
 	echo "Options:"
 	echo "  -b  Git branch onto operate."
 	echo "  -r  i-MSCP release (such as 1.1.0-rc1)."
-	echo "  -t  Transifex credentials provided as 'username:password'."
 	echo "  -m  Release manager name (default to Laurent Declercq)."
 	echo "  -f  Sourceforge username (default to nuxwin)."
 	echo "  -s  Whether or not use sudo for the restricted commands."
@@ -53,7 +50,6 @@ usage() {
 # Set default option values
 RELEASEMANAGER="Laurent Declercq"
 FTPUSER="nuxwin"
-TRANSIFEX=""
 TARGETVERSION=""
 SUDO=""
 DRYRUN=""
@@ -77,11 +73,6 @@ do
 		r)
 			TARGETVERSION=$OPTARG
 		;;
-		t)
-			TRANSIFEX=$OPTARG
-			TRANSIFEXUSER=$(echo "${TRANSIFEX}" | cut -s -d ":" -f 1 | sed 's/ //g')
-			TRANSIFEXPWD=$(echo "${TRANSIFEX}" | cut -s -d ":" -f 2 | sed 's/ //g')
-		;;
 		s)
 			SUDO="sudo"
 		;;
@@ -99,18 +90,11 @@ do
 	esac
 done
 
-
 if [ -z "${BRANCH}" ]; then
 	echo "-b option is missing" >&2
 	usage
 elif [ -z "${TARGETVERSION}" ]; then
 	echo "-r option is missing" >&2
-	usage
-elif [ -z "${TRANSIFEX}" ]; then
-	echo "-t option is missing" >&2
-	usage
-elif [ -z "${TRANSIFEXUSER}" ] || [ -z "${TRANSIFEXPWD}" ]; then
-	echo "-t option require an username and password provided as 'username:password'" >&2
 	usage
 fi
 
@@ -137,8 +121,8 @@ EOF
 ## Packages installation
 #
 
-${SUDO} apt-get update && ${SUDO} apt-get install perl git-core bzip2 zip p7zip gettext python-setuptools
-${SUDO} easy_install --upgrade transifex-client
+${SUDO} apt-get update
+${SUDO} apt-get install perl git-core bzip2 zip p7zip
 
 #
 ## Setup working environment
@@ -180,46 +164,13 @@ sed -i "s/\(BuildDate\s=\).*/\1 ${TARGETBUILDDATE}/" ./configs/*/imscp.conf
 echo "${TARGETBUILDDATE}" > ./latest.txt
 
 #
-## Update translation files
-#
-
-# Create Transifex configuration file
-if [ -f "$HOME/.transifexrc" ]; then
-	rm $HOME/.transifexrc
-fi
-touch $HOME/.transifexrc
-printf "%b\n" "[https://www.transifex.com]" >> $HOME/.transifexrc
-printf "%b\n" "hostname = https://www.transifex.com" >> $HOME/.transifexrc
-printf "%b\n" "password = ${TRANSIFEXPWD}" >> $HOME/.transifexrc
-printf "%b\n" "token = " >> $HOME/.transifexrc
-printf "%b\n" "username = ${TRANSIFEXUSER}" >> $HOME/.transifexrc
-
-# Update pot file by extracting translation string from source code
-cd ${CWD}/${GITFOLDER}/i18n/tools
-sh makemsgs
-
-if [ -z "$DRYRUN" ]; then
-	# Push translation resource file on Transifex
-	cd ${CWD}/${GITFOLDER}/i18n
-	tx push -s
-fi
-
-# Pull po files from Transifex
-cd ${CWD}/${GITFOLDER}/i18n
-tx pull -af
-
-# Compile mo file
-cd ${CWD}/${GITFOLDER}/i18n/tools
-sh compilePo
-
-#
 ## Commit changes on Github
 #
 
 cd ${CWD}/${GITFOLDER}
 
 git add .
-git commit -a -m "Preparation for new release: ${TARGETVERSION}"
+git commit -a -m "New release: ${TARGETVERSION}"
 git push origin ${BRANCH}:${BRANCH} ${DRYRUN}
 
 # Add git tag for new release
