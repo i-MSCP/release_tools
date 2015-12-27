@@ -195,19 +195,21 @@ printf "%b\n" "token = " >> $HOME/.transifexrc
 printf "%b\n" "username = ${TRANSIFEXUSER}" >> $HOME/.transifexrc
 
 # Update pot file by extracting translation string from source code
-cd ${CWD}/${GITFOLDER}/i18n
+cd ${CWD}/${GITFOLDER}/i18n/tools
 sh makemsgs
 
-# Push translation resource file on Transifex if needed
 if [ -z "$DRYRUN" ]; then
-
+	# Push translation resource file on Transifex
 	cd ${CWD}/${GITFOLDER}/i18n
 	tx push -s
 fi
 
-# Pull po files from Transifex and compile mo files
+# Pull po files from Transifex
 cd ${CWD}/${GITFOLDER}/i18n
 tx pull -af
+
+# Compile mo file
+cd ${CWD}/${GITFOLDER}/i18n/tools
 sh compilePo
 
 #
