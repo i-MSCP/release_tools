@@ -133,25 +133,24 @@ Git ${BRANCH}
 EOF
 )
 
-########################################################################################################################
-# Packages installation
-########################################################################################################################
+#
+## Packages installation
+#
 
 ${SUDO} apt-get update && ${SUDO} apt-get install perl git-core bzip2 zip p7zip gettext python-setuptools
 ${SUDO} easy_install --upgrade transifex-client
 
-########################################################################################################################
-# Setup working environment
-########################################################################################################################
+#
+## Setup working environment
+#
 
 if [ ! -d "${CWD}/${GITFOLDER}" ]; then
 	# Clone repository
 	git clone ${GITHUBURL} ${GITFOLDER}
 fi
 
-cd ${CWD}/${GITFOLDER}
-
 # Cleanup current (local) branch
+cd ${CWD}/${GITFOLDER}
 git checkout .
 git clean -f -d
 
@@ -169,9 +168,9 @@ done
 # Pull changes from remote repository
 git pull
 
-########################################################################################################################
-# Release preparation
-########################################################################################################################
+#
+## Release preparation
+#
 
 sed -i -nr '1h;1!H;${;g;s/('"Git ${BRANCH}"'\n-+)/\1'"${CHANGELOGMSG}"'/g;p;}' ./CHANGELOG
 sed -i "s/Git ${BRANCH}/${TARGETVERSION}/" ./CHANGELOG
@@ -180,16 +179,14 @@ sed -i "s/<version>/${TARGETVERSION}/g" ./docs/*/INSTALL
 sed -i "s/\(BuildDate\s=\).*/\1 ${TARGETBUILDDATE}/" ./configs/*/imscp.conf
 echo "${TARGETBUILDDATE}" > ./latest.txt
 
-########################################################################################################################
-# Translation files
-########################################################################################################################
+#
+## Update translation files
+#
 
-# Create transifex configuration file
-
+# Create Transifex configuration file
 if [ -f "$HOME/.transifexrc" ]; then
 	rm $HOME/.transifexrc
 fi
-
 touch $HOME/.transifexrc
 printf "%b\n" "[https://www.transifex.com]" >> $HOME/.transifexrc
 printf "%b\n" "hostname = https://www.transifex.com" >> $HOME/.transifexrc
@@ -197,40 +194,25 @@ printf "%b\n" "password = ${TRANSIFEXPWD}" >> $HOME/.transifexrc
 printf "%b\n" "token = " >> $HOME/.transifexrc
 printf "%b\n" "username = ${TRANSIFEXUSER}" >> $HOME/.transifexrc
 
+# Update pot file by extracting translation string from source code
 cd ${CWD}/${GITFOLDER}/i18n
-
-# Update translation files
-# This must be done prior any resource translation file update to avoid overriding of last translator names
-
-# Pull latest translation files from Transifex ( update *.po files )
-tx pull -af
-
-cd ${CWD}/${GITFOLDER}/i18n/tools
-
-# Compile mo files ( create *.mo files using *.po files )
-sh compilePo
-
-# Update translation resource file on transifex
-
-# Re-create translation resource file ( iMSCP.pot ) by extracting translation strings from source
 sh makemsgs
 
-# Revert back package version to <version>
-git checkout makemsgs
-
+# Push translation resource file on Transifex if needed
 if [ -z "$DRYRUN" ]; then
+
 	cd ${CWD}/${GITFOLDER}/i18n
 	tx push -s
 fi
 
+# Pull po files from Transifex and compile mo files
 cd ${CWD}/${GITFOLDER}/i18n
-
-# Pull latest translation files from Transifex again ( update *.po files )
 tx pull -af
+sh compilePo
 
-########################################################################################################################
-# Commit changes on Github
-########################################################################################################################
+#
+## Commit changes on Github
+#
 
 cd ${CWD}/${GITFOLDER}
 
@@ -247,38 +229,36 @@ if [ -n "$DRYRUN" ]; then
     git tag -d ${TARGETVERSION}
 fi
 
-########################################################################################################################
-# Create release folder
-########################################################################################################################
+#
+## Create release folder
+#
 
 cd ${CWD}
-
 rm -fr ${BUILDFOLDER}
 cp -rp ${GITFOLDER} ${BUILDFOLDER}
 ${SUDO} rm -fr ${BUILDFOLDER}/.git
 
-########################################################################################################################
-# Git branch update
-########################################################################################################################
+#
+## Git branch update
+#
 
 cd ${CWD}/${GITFOLDER}
-
 perl -i -pe 's/i-MSCP ChangeLog/'"$CHANGELOGMSG2"'/' ./CHANGELOG
 sed -i "s/\(Version\s=\).*/\1 Git ${BRANCH}/" ./configs/*/imscp.conf
 sed -i "s/${TARGETVERSION}/<version>/g" ./docs/*/INSTALL
 sed -i "s/\(BuildDate\s=\).*/\1/" ./configs/*/imscp.conf
 echo "" > ./latest.txt
 
-########################################################################################################################
-# Commit change on GitHub
-########################################################################################################################
+#
+## Commit change on GitHub
+#
 
 git commit -a -m "Update for Git ${BRANCH}"
 git push origin ${BRANCH}:${BRANCH} ${DRYRUN}
 
-########################################################################################################################
-# Create release archives and md5sum files
-########################################################################################################################
+#
+## Create release archives and md5sum files
+#
 
 cd ${CWD}
 
@@ -297,9 +277,9 @@ md5sum ${ARCHIVESFOLDER}/${RELEASEFOLDER}.zip > ./${ARCHIVESFOLDER}/${RELEASEFOL
 7zr a -bd ${ARCHIVESFOLDER}/${RELEASEFOLDER}.7z ./${BUILDFOLDER}
 md5sum ${ARCHIVESFOLDER}/${RELEASEFOLDER}.7z > ./${ARCHIVESFOLDER}/${RELEASEFOLDER}.7z.sum
 
-########################################################################################################################
-# Send file to sourceForge
-########################################################################################################################
+#
+## Send archives to sourceForge
+#
 
 if [ -e "./ftpbatch.sh" ]; then
 	rm -f ./ftpbatch.sh

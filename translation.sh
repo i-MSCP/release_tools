@@ -5,7 +5,6 @@
 # @author    Laurent Declercq <l.declercq@nuxwin.com>
 # @link      http://i-mscp.net
 #
-# @license
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
 # as published by the Free Software Foundation; either version 2
@@ -20,15 +19,14 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA
 #
-# IMPORTANT
-#
+# IMPORTANT:
 # You must have write access to the i-MSCP git repository (just import your ssh key if needed)
 # Usage example: ./translation.sh -b 1.2.x -t 'username:password' -d
 
 set -e
-
 clear
 
+# Get current working directory
 CWD=$(pwd)
 
 # Command line options
@@ -100,16 +98,17 @@ fi
 GITFOLDER="imscpgit"
 GITHUBURL="git@github.com:i-MSCP/imscp.git"
 
-########################################################################################################################
-# Packages installation
-########################################################################################################################
+#
+## Packages installation
+#
 
-${SUDO} apt-get update && ${SUDO} apt-get install perl git-core gettext python-setuptools
+${SUDO} apt-get update
+${SUDO} apt-get install perl git-core gettext python-setuptools
 ${SUDO} easy_install --upgrade transifex-client
 
-########################################################################################################################
-# Setup working environment
-########################################################################################################################
+#
+## Setup working environment
+#
 
 if [ ! -d "${CWD}/${GITFOLDER}" ]; then
 	# Clone repository
@@ -118,14 +117,14 @@ fi
 
 cd ${CWD}/${GITFOLDER}
 
-# Cleanup current (local) branch
+# Cleanup current branch
 git checkout .
 git clean -f -d
 
 # Update remote references
 git fetch
 
-# Switch to the selected (local) branch
+# Switch to the selected branch
 git checkout ${BRANCH}
 
 # Remove any local change
@@ -136,16 +135,14 @@ done
 # Pull changes from remote repository
 git pull
 
-########################################################################################################################
-# Translation files
-########################################################################################################################
+#
+## Update translation files
+#
 
-# Create transifex configuration file
-
+# Create Transifex configuration file
 if [ -f "$HOME/.transifexrc" ]; then
 	rm $HOME/.transifexrc
 fi
-
 touch $HOME/.transifexrc
 printf "%b\n" "[https://www.transifex.com]" >> $HOME/.transifexrc
 printf "%b\n" "hostname = https://www.transifex.com" >> $HOME/.transifexrc
@@ -153,47 +150,29 @@ printf "%b\n" "password = ${TRANSIFEXPWD}" >> $HOME/.transifexrc
 printf "%b\n" "token = " >> $HOME/.transifexrc
 printf "%b\n" "username = ${TRANSIFEXUSER}" >> $HOME/.transifexrc
 
+# Update pot file by extracting translation string from source code
 cd ${CWD}/${GITFOLDER}/i18n
-
-#
-## Update translation files
-## This must be done prior any resource translation file update to avoid overriding of last translator names
-#
-
-# Pull latest translation files from Transifex ( update *.po files )
-tx pull -af
-
-cd ${CWD}/${GITFOLDER}/i18n/tools
-
-# Compile mo files ( create *.mo files using *.po files )
-sh compilePo
-
-#
-## Update translation resource file on Transifex
-#
-
-# Re-create translation resource file ( iMSCP.pot ) by extracting translation strings from source
 sh makemsgs
 
 if [ -z "$DRYRUN" ]; then
-	# Push new translation resource file on transifex
+	# Push translation resource file on Transifex
 	cd ${CWD}/${GITFOLDER}/i18n
 	tx push -s
 fi
 
+# Pull po files from Transifex and compile mo files
 cd ${CWD}/${GITFOLDER}/i18n
-
-# Pull latest translation files from Transifex again ( update *.po files )
 tx pull -af
+sh compilePo
 
-########################################################################################################################
-# Commit changes on Github
-########################################################################################################################
+#
+## Commit changes on Github
+#
 
 if [ -z "$DRYRUN" ]; then
 	cd ${CWD}/${GITFOLDER}
 	git add .
-	git commit -a -m "Updated: Translation files ( synced with Transifex )"
+	git commit -a -m "Updated: Translation files (synced with Transifex)"
 	git push origin ${BRANCH}:${BRANCH} ${DRYRUN}
 fi
 
