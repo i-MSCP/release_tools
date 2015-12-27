@@ -1,41 +1,38 @@
-# Release Tools
+# i-MSCP utility scripts
 
-Repository containing tools for i-MSCP
+Provides some utility scripts for i-MSCP.
 
-## release.sh
+## release.sh script
 
-This script allows to release new i-MSCP version for the specified branch. In order, it will:
+This script allows to release a new i-MSCP version for the specified branch. In order, it will:
 
-- clone remote GitHub repository if needed
-- update CHANGELOG, INSTALL, release and imscp.conf files
-- pull last portable object files from Transifex and compile machine object files
-- Build new portable object template file and send it to Transifex
-- pull up-to-date portable object files from Transifex )
-- commit changes on GitHub and add git tag for new i-MSCP version
-- update git repository for development
-- pack new version archives and send them to SourceForge
+- Clone remote GitHub repository if needed
+- Update CHANGELOG, INSTALL, release and imscp.conf files
+- Commit changes on GitHub and add git tag for new i-MSCP version
+- Update git repository for development
+- Pack new version archives and send them to SourceForge
 
-**Usage example:**
+### Usage example
 
-```shell
-$ sh ./release.sh -b 1.2.x -r 1.2.3 -t '<transifex_username>:<transifex_password>' -m 'Laurent Declercq' -f nuxwin -s -d
+```sh
+$ sh ./release.sh -b 1.2.x -r 1.2.3 -m 'Laurent Declercq' -f nuxwin -s -d
 ```
 
-**Note:** You must have write access on both GitHub repository and SourceForge.
+**Note:** You must have write access on GitHub repository and SourceForge.
 
-## translation.sh
+## translation.sh script
 
 This script allows to update i-MSCP core translation files for the specified i-MSCP branch. In order it will:
 
 - Clone remote GitHub repository if needed
-- pull last portable object files from Transifex and compile machine object files
-- Build new portable object template file and send it to Transifex
-- pull up-to-date portable object files from Transifex 
-- commit changes on GitHub 
+- Update resource translation file on Transifex (pot file)
+- Pull lastest po files from Transifex
+- Build machine object files 
+- Commit changes on GitHub 
 
-**Usage example:** 
+### Usage example
 
-```
+```sh
 $ sh ./translation.sh -b 1.2.x -t '<transifex_username>:<transifex_password>' -s
 ```
 
