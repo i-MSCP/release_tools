@@ -1,9 +1,9 @@
 #!/bin/sh
 # i-MSCP - internet Multi Server Control Panel
-# Copyright (C) 2010-2014 by internet Multi Server Control Panel
+# Copyright (C) 2010-2018 by internet Multi Server Control Panel
 #
 # @author    Laurent Declercq <l.declercq@nuxwin.com>
-# @link      http://i-mscp.net
+# @link      https://i-mscp.net
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -18,244 +18,219 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA
-#
-# IMPORTANT:
-# You must have write access to the i-MSCP git repository (just import your ssh key if needed)
-# Usage example: ./release.sh -b 1.2.x -r 1.2.10 -m 'Laurent Declercq' -f nuxwin -s -d
 
 set -e
-clear
-
-# Get current working directory
-CWD=$(pwd)
 
 # Command line options
 usage() {
-	NAME=`basename $0`
-	echo "Usage: bash $NAME -r <RELEASE> [OPTIONS] ..."
-	echo "Release new i-MSCP version on github and sourceforge"
-	echo ""
-	echo "Options:"
-	echo "  -b  Git branch onto operate."
-	echo "  -r  i-MSCP release (such as 1.1.0-rc1)."
-	echo "  -m  Release manager name (default to Laurent Declercq)."
-	echo "  -f  Sourceforge username (default to nuxwin)."
-	echo "  -s  Whether or not use sudo for the restricted commands."
-	echo "  -d  Do everything except actually send the updates on both Github and Sourceforge."
-	echo "  -h  Show this help."
-
-	exit 1
+  local NAME=`basename $0`
+  echo "Usage: ./$NAME [OPTION]... RELEASE_BRANCH RELEASE"
+  echo ""
+  echo "Release new i-MSCP version on GitHub and SourceForge"
+  echo ""
+  echo "OPTIONS:"
+  echo "  -d   Do everything except pushing changes to GitHub and Sourceforge."
+  echo "  -f   Sourceforge username (default to nuxwin)."
+  echo "  -?,h Show this help."
+  echo "  -g   GitHub user (default to nuxwin)."
+  echo "  -m   Release manager name (default to Laurent Declercq)."
+  echo "  -s   Make use of SUDO(8) for the restricted commands."
+  exit 1
 }
 
 # Set default option values
-RELEASEMANAGER="Laurent Declercq"
-FTPUSER="nuxwin"
-TARGETVERSION=""
+RELEASE_MANAGER="Laurent Declercq"
+GITHUB_USER="nuxwin"
+FTP_USER="nuxwin"
 SUDO=""
-DRYRUN=""
-BRANCH=""
+DRY_RUN=""
 
-# Parse command line options
-if [ "$#" -eq "1" -a "$1" = "-h" ]; then usage; fi
-
-while getopts ":b:f:m:r:t:sd" option;
-do
-	case ${option} in
-		b)
-			BRANCH=$OPTARG
-		;;
-		f)
-			FTPUSER=$OPTARG
-		;;
-		m)
-			RELEASEMANAGER=$OPTARG
-		;;
-		r)
-			TARGETVERSION=$OPTARG
-		;;
-		s)
-			SUDO="sudo"
-		;;
-		d)
-			DRYRUN="--dry-run"
-		;;
-		\?)
-			echo "Invalid option: -$OPTARG" >&2
-			usage
-			;;
-		:)
-			echo "Option -$OPTARG requires an argument." >&2
-			usage
-		;;
-	esac
+# Parse options
+while getopts ":b:f:g:m:r:t:sd" option; do
+  case ${option} in
+    d) DRY_RUN="--dry-run" ;;
+    f) FTP_USER=$OPTARG ;;
+    g) GITHUB_USER=$OPTARG ;;
+    m) RELEASE_MANAGER=$OPTARG ;;
+    s) SUDO="sudo" ;;
+    \?|h)
+      usage
+    ;;
+    :)
+      echo "Option -$OPTARG requires an argument." >&2
+      usage
+    ;;
+    *)
+      echo "Unknown option: -$OPTARG" >& 2
+      usage
+    ;;
+  esac
 done
+shift $((OPTIND-1))
 
-if [ -z "${BRANCH}" ]; then
-	echo "-b option is missing" >&2
-	usage
-elif [ -z "${TARGETVERSION}" ]; then
-	echo "-r option is missing" >&2
-	usage
-fi
+[ "$#" -eq 2 ] || usage
+
+RELEASE_BRANCH=$1
+RELEASE=$2
+
+## Prepare environment
 
 # Variables
-GITFOLDER="imscpgit"
-GITHUBURL="git@github.com:i-MSCP/imscp.git"
-BUILDFOLDER="imscp-${TARGETVERSION}"
-RELEASEFOLDER="imscp-${TARGETVERSION}"
-ARCHIVESFOLDER="archives"
-FTPFOLDER="i-MSCP-${TARGETVERSION}"
-TARGETBUILDDATE=$(date -u +"%Y%m%d")
-CHANGELOGMSG="\n\n`date -u +%Y-%m-%d`: ${RELEASEMANAGER}\n    RELEASE i-MSCP ${TARGETVERSION}"
-CHANGELOGMSG2=$(cat <<EOF
+CWD=$(pwd)
+GIT_FOLDER="imscpgit"
+GITHUB_URL="git@github.com:i-MSCP/imscp.git"
+
+## Packages installation
+${SUDO} apt-get update
+${SUDO} apt-get install curl perl git-core pbzip2 pigz p7zip
+
+if [ ! -d "${GIT_FOLDER}" ]; then
+  # Clone repository
+  git clone --depth 1 ${GITHUB_URL} ${GIT_FOLDER}
+  cd ${GIT_FOLDER}
+else
+  # Cleanup current (local) branch
+  cd ${GIT_FOLDER}
+  git clean -dfx
+  git reset --hard origin/$(git symbolic-ref --short HEAD)
+  git pull
+  git remote update origin --prune
+fi
+
+git remote set-branches origin ${RELEASE_BRANCH}
+git fetch --depth 1 origin ${RELEASE_BRANCH}
+git checkout ${RELEASE_BRANCH}
+
+## GitHub (release)
+
+# Variables
+RELEASE_MAINT=false
+RELEASE_BUILD="$(date -u +"%Y%m%d")00"
+RELEASE_TAG=${RELEASE}
+if git ls-remote --exit-code --tags origin ${RELEASE_TAG} >/dev/null; then
+  RELEASE_MAINT=true
+  RELEASE_TAG="${RELEASE}-${RELEASE_BUILD}"
+  while git ls-remote --exit-code --tags origin ${RELEASE_TAG} >/dev/null; do
+    RELEASE_BUILD=$((RELEASE_BUILD+1));
+    RELEASE_TAG="${RELEASE}-${RELEASE_BUILD}"
+  done
+fi
+RELEASE_CHANGELOG_MSG="\n\n`date -u +%Y-%m-%d`: ${RELEASE_MANAGER}\n    RELEASE i-MSCP ${RELEASE} (build ${RELEASE_BUILD})"
+
+# Release preparation
+sed -i -nr '1h;1!H;${;g;s/('"Git ${RELEASE_BRANCH}"'\n-+)/\1'"${RELEASE_CHANGELOG_MSG}"'/g;p;}' ./CHANGELOG
+sed -i "s/^Git ${RELEASE_BRANCH}/${RELEASE} (build ${RELEASE_BUILD})/" ./CHANGELOG
+sed -i "s/\(^Version\s=\).*/\1 ${RELEASE}/" ./configs/*/imscp.conf
+sed -i "s/\(^Build\s=\).*/\1 ${RELEASE_BUILD}/" ./configs/*/imscp.conf
+sed -i "s/<release_branch>/${RELEASE_BRANCH}/g" ./docs/*/INSTALL.md
+sed -i "s/<release_tag>/${RELEASE_TAG}/g" ./docs/*/INSTALL.md
+sed -i "s/<release>/${RELEASE}/g" ./docs/${RELEASE_BRANCH}_errata.md
+sed -i "s/<release_build>/${RELEASE_BUILD}/g" ./docs/${RELEASE_BRANCH}_errata.md
+
+# Commit changes
+git commit -a -m "New release: ${RELEASE} (build ${RELEASE_BUILD})"
+git push ${DRY_RUN} origin ${RELEASE_BRANCH}
+
+# Create tag (now done through GitHub API call)
+#git tag -f ${RELEASE_TAG} -m "i-MSCP ${RELEASE} (build ${RELEASE_BUILD}) release" origin/${RELEASE_BRANCH}
+#git push ${DRY_RUN} origin ${RELEASE_TAG}
+
+#if [ -n "${DRY_RUN}" ]; then
+#    # Remove tag in dry-run mode
+#    git tag -d ${RELEASE_TAG}
+#else
+if [ -z "${DRY_RUN}" ]; then
+    if [ "${RELEASE_MAINT}" = false ]; then
+        RELEASE_DESCRIPTION="Stable Release"
+    else
+        RELEASE_DESCRIPTION="Maintenance (bugfixes) Release"
+    fi
+
+    printf "%b\n" "A new release ${RELEASE_TAG} will be created on GitHub.\nYou will be asked for your GitHub password."
+    curl https://api.github.com/repos/i-MSCP/imscp/releases \
+      -H "Accept: application/vnd.github.v3+json" \
+      -H "Content-Type: text/json; charset=utf-8" \
+      -u "${GITHUB_USER}" \
+      -X POST \
+      --data @- << EOF
+{
+  "tag_name": "${RELEASE_TAG}",
+  "target_commitish": "${RELEASE_BRANCH}",
+  "name": "${RELEASE} (build ${RELEASE_BUILD}) Release",
+  "body": "${RELEASE_DESCRIPTION}",
+  "draft": false,
+  "prerelease": false
+}
+EOF
+fi
+
+## SourceForge
+
+# Variables
+ARCHIVES_FOLDER="archives"
+RELEASE_FOLDER="imscp-${RELEASE_TAG}"
+
+cd ${CWD}
+
+# Create release folder
+rm -fR ${RELEASE_FOLDER}
+cp -a  ${GIT_FOLDER} ${RELEASE_FOLDER}
+rm -fR ${RELEASE_FOLDER}/.git
+
+# Create archives folders
+rm -fr ${ARCHIVES_FOLDER};
+mkdir ${ARCHIVES_FOLDER};
+
+# Create various archives
+tar -I pbzip2 -cf ${ARCHIVES_FOLDER}/${RELEASE_FOLDER}.tar.bz2 ./${RELEASE_FOLDER}
+tar -I pigz -cf ${ARCHIVES_FOLDER}/${RELEASE_FOLDER}.tar.gz ./${RELEASE_FOLDER}
+zip -9rq ${ARCHIVES_FOLDER}/${RELEASE_FOLDER}.zip ./${RELEASE_FOLDER}
+7zr a -bd ${ARCHIVES_FOLDER}/${RELEASE_FOLDER}.7z ./${RELEASE_FOLDER}
+
+# Generate archive checksum files
+cd ${ARCHIVES_FOLDER}
+for i in tar.bz2 tar.gz zip 7z; do
+  md5sum ${RELEASE_FOLDER}.${i} > ${RELEASE_FOLDER}.${i}.sum
+done
+
+cd ${CWD}
+
+# Prepare FTP batch
+printf "%b\n" "cd /home/frs/project/i/i-/i-mscp" > sftpbatch
+printf "%b\n" "mkdir i-MSCP\ ${RELEASE_TAG}" >> sftpbatch
+printf "%b\n" "cd i-MSCP\ ${RELEASE_TAG}" >> sftpbatch
+for i in zip 7ztar.gz tar.bz2; do
+  printf "%b\n" "put ${ARCHIVES_FOLDER}/${RELEASE_FOLDER}.${i}" >> sftpbatch
+  printf "%b\n" "put ${ARCHIVES_FOLDER}/${RELEASE_FOLDER}.${i}.sum" >> sftpbatch
+done
+printf "%b\n" "quit" >> sftpbatch
+
+if [ -z "${DRY_RUN}" ]; then
+  # Upload archives and checksum files to SourceForge
+  printf "%b\n" "Files will be uploaded to sourceforge.net.\nYou will be asked for your sourceforge password."
+  sftp -o "batchmode no" -b ./sftpbatch ${FTP_USER},i-mscp@frs.sourceforge.net
+fi
+
+## GitHub (development)
+
+# Variables
+GIT_CHANGELOG_MSG=$(cat <<EOF
 i-MSCP ChangeLog
 
 ------------------------------------------------------------------------------------------------------------------------
-Git ${BRANCH}
+Git ${RELEASE_BRANCH}
 ------------------------------------------------------------------------------------------------------------------------
 
 EOF
 )
 
-#
-## Packages installation
-#
-
-${SUDO} apt-get update
-${SUDO} apt-get install perl git-core bzip2 zip p7zip
-
-#
-## Setup working environment
-#
-
-if [ ! -d "${CWD}/${GITFOLDER}" ]; then
-	# Clone repository
-	git clone ${GITHUBURL} ${GITFOLDER}
-fi
-
-# Cleanup current (local) branch
-cd ${CWD}/${GITFOLDER}
-git checkout .
-git clean -f -d
-
-# Update remote references
-git fetch
-
-# Switch to the selected (local) branch
-git checkout ${BRANCH}
-
-# Remove any local change
-while git status | grep -q "ahead"; do
-	git reset --hard HEAD^
-done
-
-# Pull changes from remote repository
-git pull
-
-#
-## Release preparation
-#
-
-sed -i -nr '1h;1!H;${;g;s/('"Git ${BRANCH}"'\n-+)/\1'"${CHANGELOGMSG}"'/g;p;}' ./CHANGELOG
-sed -i "s/Git ${BRANCH}/${TARGETVERSION}/" ./CHANGELOG
-sed -i "s/\(Version\s=\).*/\1 ${TARGETVERSION}/" ./configs/*/imscp.conf
-sed -i "s/<version>/${TARGETVERSION}/g" ./docs/*/INSTALL
-sed -i "s/\(BuildDate\s=\).*/\1 ${TARGETBUILDDATE}/" ./configs/*/imscp.conf
-echo "${TARGETBUILDDATE}" > ./latest.txt
-
-#
-## Commit changes on Github
-#
-
-cd ${CWD}/${GITFOLDER}
-
-git add .
-git commit -a -m "New release: ${TARGETVERSION}"
-git push origin ${BRANCH}:${BRANCH} ${DRYRUN}
-
-# Add git tag for new release
-git tag -f ${TARGETVERSION} -m "i-MSCP $TARGETVERSION release" origin/${BRANCH}
-git push origin ${TARGETVERSION} ${DRYRUN}
-git pull
-
-if [ -n "$DRYRUN" ]; then
-    git tag -d ${TARGETVERSION}
-fi
-
-#
-## Create release folder
-#
-
-cd ${CWD}
-rm -fr ${BUILDFOLDER}
-cp -rp ${GITFOLDER} ${BUILDFOLDER}
-${SUDO} rm -fr ${BUILDFOLDER}/.git
-
-#
 ## Git branch update
-#
-
-cd ${CWD}/${GITFOLDER}
-perl -i -pe 's/i-MSCP ChangeLog/'"$CHANGELOGMSG2"'/' ./CHANGELOG
-sed -i "s/\(Version\s=\).*/\1 Git ${BRANCH}/" ./configs/*/imscp.conf
-sed -i "s/${TARGETVERSION}/<version>/g" ./docs/*/INSTALL
-sed -i "s/\(BuildDate\s=\).*/\1/" ./configs/*/imscp.conf
-echo "" > ./latest.txt
-
-#
-## Commit change on GitHub
-#
-
-git commit -a -m "Update for Git ${BRANCH}"
-git push origin ${BRANCH}:${BRANCH} ${DRYRUN}
-
-#
-## Create release archives and md5sum files
-#
-
-cd ${CWD}
-
-rm -fr ${ARCHIVESFOLDER};
-mkdir ${ARCHIVESFOLDER};
-
-tar cjf ${ARCHIVESFOLDER}/${RELEASEFOLDER}.tar.bz2 ./${BUILDFOLDER}
-md5sum ${ARCHIVESFOLDER}/${RELEASEFOLDER}.tar.bz2 > ./${ARCHIVESFOLDER}/${RELEASEFOLDER}.tar.bz2.sum
-
-tar czf ${ARCHIVESFOLDER}/${RELEASEFOLDER}.tar.gz ./${BUILDFOLDER}
-md5sum ${ARCHIVESFOLDER}/${RELEASEFOLDER}.tar.gz > ./${ARCHIVESFOLDER}/${RELEASEFOLDER}.tar.gz.sum
-
-zip -9rq ${ARCHIVESFOLDER}/${RELEASEFOLDER}.zip ./${BUILDFOLDER}
-md5sum ${ARCHIVESFOLDER}/${RELEASEFOLDER}.zip > ./${ARCHIVESFOLDER}/${RELEASEFOLDER}.zip.sum
-
-7zr a -bd ${ARCHIVESFOLDER}/${RELEASEFOLDER}.7z ./${BUILDFOLDER}
-md5sum ${ARCHIVESFOLDER}/${RELEASEFOLDER}.7z > ./${ARCHIVESFOLDER}/${RELEASEFOLDER}.7z.sum
-
-#
-## Send archives to sourceForge
-#
-
-if [ -e "./ftpbatch.sh" ]; then
-	rm -f ./ftpbatch.sh
-fi
-
-touch ./ftpbatch.sh
-
-printf "%b\n" "cd /home/frs/project/i/i-/i-mscp" >> ftpbatch.sh
-printf "%b\n" "mkdir i-MSCP\ ${TARGETVERSION}" >> ftpbatch.sh
-printf "%b\n" "cd i-MSCP\ ${TARGETVERSION}" >> ftpbatch.sh
-printf "%b\n" "put ${ARCHIVESFOLDER}/${RELEASEFOLDER}.zip" >> ftpbatch.sh
-printf "%b\n" "put ${ARCHIVESFOLDER}/${RELEASEFOLDER}.zip.sum" >> ftpbatch.sh
-printf "%b\n" "put ${ARCHIVESFOLDER}/${RELEASEFOLDER}.7z" >> ftpbatch.sh
-printf "%b\n" "put ${ARCHIVESFOLDER}/${RELEASEFOLDER}.7z.sum" >> ftpbatch.sh
-printf "%b\n" "put ${ARCHIVESFOLDER}/${RELEASEFOLDER}.tar.gz" >> ftpbatch.sh
-printf "%b\n" "put ${ARCHIVESFOLDER}/${RELEASEFOLDER}.tar.gz.sum" >> ftpbatch.sh
-printf "%b\n" "put ${ARCHIVESFOLDER}/${RELEASEFOLDER}.tar.bz2" >> ftpbatch.sh
-printf "%b\n" "put ${ARCHIVESFOLDER}/${RELEASEFOLDER}.tar.bz2.sum" >> ftpbatch.sh
-printf "%b\n" "quit" >> ftpbatch.sh
-
-if [ -z "$DRYRUN" ]; then
-	printf "%b\n" "Files will be uploaded to sourceforge.net.\nYou will be asked for your sourceforge password."
-	sftp -o "batchmode no" -b ./ftpbatch.sh ${FTPUSER},i-mscp@frs.sourceforge.net
-fi
-
-exit
+cd ${GIT_FOLDER}
+perl -i -pe 's/^i-MSCP ChangeLog/'"$GIT_CHANGELOG_MSG"'/' ./CHANGELOG
+sed -i "s/\(^Version\s=\).*/\1 Git ${RELEASE_BRANCH}/" ./configs/*/imscp.conf
+sed -i "s/\(^Build\s=\).*/\1/" ./configs/*/imscp.conf
+sed -i "s/${RELEASE_BRANCH}/<release_branch>/g" ./docs/*/INSTALL.md
+sed -i "s/${RELEASE_TAG}/<release_tag>/g" ./docs/*/INSTALL.md
+sed -i "s/\(## Version ${RELEASE} (build ${RELEASE_BUILD})\)/## Version <release> (build <release_build>)\n\n\1/" ./docs/${RELEASE_BRANCH}_errata.md
+git commit -a -m "Update for Git ${RELEASE_BRANCH}"
+git push ${DRY_RUN} origin ${RELEASE_BRANCH}:${RELEASE_BRANCH}
