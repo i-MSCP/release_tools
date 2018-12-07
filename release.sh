@@ -20,6 +20,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA
 
 set -e
+export LANG=C.UTF-8
 
 # Command line options
 usage() {
@@ -128,17 +129,13 @@ sed -i "s/<release>/${RELEASE}/g" ./docs/${RELEASE_BRANCH}_errata.md
 sed -i "s/<release_build>/${RELEASE_BUILD}/g" ./docs/${RELEASE_BRANCH}_errata.md
 
 # Commit changes
-git commit -a -m "New release: ${RELEASE} (build ${RELEASE_BUILD})"
+git commit -a -s -m "New release: ${RELEASE} (build ${RELEASE_BUILD})"
 git push ${DRY_RUN} origin ${RELEASE_BRANCH}
 
-# Create tag (now done through GitHub API call)
-#git tag -f ${RELEASE_TAG} -m "i-MSCP ${RELEASE} (build ${RELEASE_BUILD}) release" origin/${RELEASE_BRANCH}
-#git push ${DRY_RUN} origin ${RELEASE_TAG}
+# Create signed tag for new release
+git tag -f -s -m "i-MSCP ${RELEASE} (build ${RELEASE_BUILD}) release" -f ${RELEASE_TAG}
+git push ${DRY_RUN} origin ${RELEASE_TAG}
 
-#if [ -n "${DRY_RUN}" ]; then
-#    # Remove tag in dry-run mode
-#    git tag -d ${RELEASE_TAG}
-#else
 if [ -z "${DRY_RUN}" ]; then
     if [ "${RELEASE_MAINT}" = false ]; then
         RELEASE_DESCRIPTION="Stable Release"
@@ -232,5 +229,5 @@ sed -i "s/\(^Build\s=\).*/\1/" ./configs/*/imscp.conf
 sed -i "s/${RELEASE_BRANCH}/<release_branch>/g" ./docs/*/INSTALL.md
 sed -i "s/${RELEASE_TAG}/<release_tag>/g" ./docs/*/INSTALL.md
 sed -i "s/\(^## Version ${RELEASE} (build ${RELEASE_BUILD})\)/## Version <release> (build <release_build>)\n\n\1/" ./docs/${RELEASE_BRANCH}_errata.md
-git commit -a -m "Update for Git ${RELEASE_BRANCH}"
+git commit -a -s -m "Update for Git ${RELEASE_BRANCH}"
 git push ${DRY_RUN} origin ${RELEASE_BRANCH}:${RELEASE_BRANCH}
