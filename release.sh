@@ -175,10 +175,10 @@ cd ${CWD}
 # Create release folder
 rm -fR ${RELEASE_FOLDER}
 cp -a  ${GIT_FOLDER} ${RELEASE_FOLDER}
-rm -fR ${RELEASE_FOLDER}/.git
+rm -fR ${RELEASE_FOLDER}/.git ${RELEASE_FOLDER}/.gitattributes ${RELEASE_FOLDER}/.gitignore
 
 # Create archives folders
-rm -fr ${ARCHIVES_FOLDER};
+rm -fR ${ARCHIVES_FOLDER};
 mkdir ${ARCHIVES_FOLDER};
 
 # Create various archives
@@ -231,6 +231,6 @@ sed -i "s/\(^Version\s=\).*/\1 Git ${RELEASE_BRANCH}/" ./configs/*/imscp.conf
 sed -i "s/\(^Build\s=\).*/\1/" ./configs/*/imscp.conf
 sed -i "s/${RELEASE_BRANCH}/<release_branch>/g" ./docs/*/INSTALL.md
 sed -i "s/${RELEASE_TAG}/<release_tag>/g" ./docs/*/INSTALL.md
-sed -i "s/\(## Version ${RELEASE} (build ${RELEASE_BUILD})\)/## Version <release> (build <release_build>)\n\n\1/" ./docs/${RELEASE_BRANCH}_errata.md
+sed -i "s/\(^## Version ${RELEASE} (build ${RELEASE_BUILD})\)/## Version <release> (build <release_build>)\n\n\1/" ./docs/${RELEASE_BRANCH}_errata.md
 git commit -a -m "Update for Git ${RELEASE_BRANCH}"
 git push ${DRY_RUN} origin ${RELEASE_BRANCH}:${RELEASE_BRANCH}
