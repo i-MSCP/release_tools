@@ -161,6 +161,30 @@ if [ -z "${DRY_RUN}" ]; then
 EOF
 fi
 
+## GitHub (development)
+
+# Variables
+GIT_CHANGELOG_MSG=$(cat <<EOF
+i-MSCP ChangeLog
+
+------------------------------------------------------------------------------------------------------------------------
+Git ${RELEASE_BRANCH}
+------------------------------------------------------------------------------------------------------------------------
+
+EOF
+)
+
+## Git branch update
+cd ${GIT_FOLDER}
+perl -i -pe 's/^i-MSCP ChangeLog/'"${GIT_CHANGELOG_MSG}"'/' ./CHANGELOG
+sed -i "s/\(^Version\s=\).*/\1 Git ${RELEASE_BRANCH}/" ./configs/*/imscp.conf
+sed -i "s/\(^Build\s=\).*/\1/" ./configs/*/imscp.conf
+sed -i "s/${RELEASE_BRANCH}/<release_branch>/g" ./docs/*/INSTALL.md
+sed -i "s/${RELEASE_TAG}/<release_tag>/g" ./docs/*/INSTALL.md
+sed -i "s/\(^## Version ${RELEASE} (build ${RELEASE_BUILD})\)/## Version <release> (build <release_build>)\n\n\1/" ./docs/${RELEASE_BRANCH}_errata.md
+git commit -a -s -m "Update for Git ${RELEASE_BRANCH}"
+git push ${DRY_RUN} origin ${RELEASE_BRANCH}:${RELEASE_BRANCH}
+
 ## SourceForge
 
 # Variables
@@ -207,27 +231,3 @@ if [ -z "${DRY_RUN}" ]; then
   printf "%b\n" "Files will be uploaded to sourceforge.net.\nYou will be asked for your sourceforge password."
   sftp -o "batchmode no" -b ./sftpbatch ${FTP_USER},i-mscp@frs.sourceforge.net
 fi
-
-## GitHub (development)
-
-# Variables
-GIT_CHANGELOG_MSG=$(cat <<EOF
-i-MSCP ChangeLog
-
-------------------------------------------------------------------------------------------------------------------------
-Git ${RELEASE_BRANCH}
-------------------------------------------------------------------------------------------------------------------------
-
-EOF
-)
-
-## Git branch update
-cd ${GIT_FOLDER}
-perl -i -pe 's/^i-MSCP ChangeLog/'"${GIT_CHANGELOG_MSG}"'/' ./CHANGELOG
-sed -i "s/\(^Version\s=\).*/\1 Git ${RELEASE_BRANCH}/" ./configs/*/imscp.conf
-sed -i "s/\(^Build\s=\).*/\1/" ./configs/*/imscp.conf
-sed -i "s/${RELEASE_BRANCH}/<release_branch>/g" ./docs/*/INSTALL.md
-sed -i "s/${RELEASE_TAG}/<release_tag>/g" ./docs/*/INSTALL.md
-sed -i "s/\(^## Version ${RELEASE} (build ${RELEASE_BUILD})\)/## Version <release> (build <release_build>)\n\n\1/" ./docs/${RELEASE_BRANCH}_errata.md
-git commit -a -s -m "Update for Git ${RELEASE_BRANCH}"
-git push ${DRY_RUN} origin ${RELEASE_BRANCH}:${RELEASE_BRANCH}
