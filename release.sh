@@ -196,7 +196,7 @@ cd ${CWD}
 printf "%b\n" "cd /home/frs/project/i/i-/i-mscp" > sftpbatch
 printf "%b\n" "mkdir i-MSCP\ ${RELEASE_TAG}" >> sftpbatch
 printf "%b\n" "cd i-MSCP\ ${RELEASE_TAG}" >> sftpbatch
-for i in zip 7ztar.gz tar.bz2; do
+for i in 7z tar.bz2 tar.gz zip; do
   printf "%b\n" "put ${ARCHIVES_FOLDER}/${RELEASE_FOLDER}.${i}" >> sftpbatch
   printf "%b\n" "put ${ARCHIVES_FOLDER}/${RELEASE_FOLDER}.${i}.sum" >> sftpbatch
 done
@@ -223,7 +223,7 @@ EOF
 
 ## Git branch update
 cd ${GIT_FOLDER}
-perl -i -pe 's/^i-MSCP ChangeLog/'"$GIT_CHANGELOG_MSG"'/' ./CHANGELOG
+perl -i -pe 's/^i-MSCP ChangeLog/'"${GIT_CHANGELOG_MSG}"'/' ./CHANGELOG
 sed -i "s/\(^Version\s=\).*/\1 Git ${RELEASE_BRANCH}/" ./configs/*/imscp.conf
 sed -i "s/\(^Build\s=\).*/\1/" ./configs/*/imscp.conf
 sed -i "s/${RELEASE_BRANCH}/<release_branch>/g" ./docs/*/INSTALL.md
